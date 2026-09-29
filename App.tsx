@@ -49,9 +49,19 @@ function AppNavigator() {
         </Stack.Screen>
         <Stack.Screen
           name="Listen"
-          component={ListenScreen}
-          options={{ title: 'Listen' }}
-        />
+          options={{ headerShown: false }}
+        >
+          {(props) => (
+            <ListenScreen
+              {...props}
+              currentChord="Am7"
+              activeNotes={[57, 60, 64, 67]}
+              notesList="A · C · E · G"
+              previousChords={['Dm7', 'G7', 'Cmaj7', 'Fmaj7']}
+              isListening={true}
+            />
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
