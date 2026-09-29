@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { PianoKeyboard } from '../components/PianoKeyboard';
 import { useNoteDetection } from '../hooks/useNoteDetection';
+import { useStableNotes, midiToNoteName } from '../audio';
 import {
   COLORS,
   FONTS,
@@ -83,7 +84,7 @@ export const ListenScreen: React.FC<Props> = ({
   const { width } = useWindowDimensions();
 
   // Connect continuous audio stream and run on-device note detection inference
-  const { isStreaming } = useNoteDetection({
+  const { isStreaming, scores } = useNoteDetection({
     autoStart: isListening,
     onNotesDetected: (result) => {
       if (result.detectedNotes.length > 0) {
@@ -95,10 +96,20 @@ export const ListenScreen: React.FC<Props> = ({
         console.log(
           `[NoteDetection] ${new Date(result.timestamp).toISOString()} - Top notes: ${topNotesSummary}`
         );
+      }
+    },
+  });
+
+  // Stabilize note activations across consecutive frames with onset debouncing and hysteresis
+  useStableNotes(scores, {
+    onStableNotesChange: (notes) => {
+      if (notes.length > 0) {
+        const stableSummary = notes
+          .map((midi) => `${midiToNoteName(midi)} (MIDI ${midi})`)
+          .join(', ');
+        console.log(`[StableNotes] Active notes (${notes.length}): ${stableSummary}`);
       } else {
-        console.log(
-          `[NoteDetection] ${new Date(result.timestamp).toISOString()} - No notes above threshold`
-        );
+        console.log('[StableNotes] Active notes (0): None (cleared)');
       }
     },
   });
