@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { PianoKeyboard } from '../components/PianoKeyboard';
-import { useAudioStream } from '../hooks/useAudioStream';
+import { useNoteDetection } from '../hooks/useNoteDetection';
 import {
   COLORS,
   FONTS,
@@ -82,13 +82,24 @@ export const ListenScreen: React.FC<Props> = ({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  // Connect continuous audio stream capture and log buffer arrivals
-  const { isStreaming } = useAudioStream({
+  // Connect continuous audio stream and run on-device note detection inference
+  const { isStreaming } = useNoteDetection({
     autoStart: isListening,
-    onBuffer: (buffer) => {
-      console.log(
-        `[AudioStream] ${new Date(buffer.timestamp).toISOString()} - buffer length: ${buffer.samples.length} samples`
-      );
+    onNotesDetected: (result) => {
+      if (result.detectedNotes.length > 0) {
+        const topNotesSummary = result.detectedNotes
+          .map(
+            (n) => `${n.name} (MIDI ${n.midi}, ${(n.confidence * 100).toFixed(0)}%)`
+          )
+          .join(', ');
+        console.log(
+          `[NoteDetection] ${new Date(result.timestamp).toISOString()} - Top notes: ${topNotesSummary}`
+        );
+      } else {
+        console.log(
+          `[NoteDetection] ${new Date(result.timestamp).toISOString()} - No notes above threshold`
+        );
+      }
     },
   });
 

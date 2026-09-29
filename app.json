@@ -52,7 +52,8 @@
           "recordAudioAndroid": true
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "onnxruntime-react-native"
     ]
   }
 }
