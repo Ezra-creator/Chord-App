@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { PianoKeyboard } from '../components/PianoKeyboard';
+import { useAudioStream } from '../hooks/useAudioStream';
 import {
   COLORS,
   FONTS,
@@ -81,6 +82,18 @@ export const ListenScreen: React.FC<Props> = ({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+  // Connect continuous audio stream capture and log buffer arrivals
+  const { isStreaming } = useAudioStream({
+    autoStart: isListening,
+    onBuffer: (buffer) => {
+      console.log(
+        `[AudioStream] ${new Date(buffer.timestamp).toISOString()} - buffer length: ${buffer.samples.length} samples`
+      );
+    },
+  });
+
+  const activeStatus = isListening && isStreaming;
+
   // Clamp chord name font size between ~30 and 46
   const chordFontSize = Math.min(
     TYPE_SCALE.chordName,
@@ -127,11 +140,21 @@ export const ListenScreen: React.FC<Props> = ({
         {/* Right: Status indicator & previous chords trail */}
         <View style={styles.rightHeader}>
           <View style={styles.statusRow}>
-            <View style={styles.statusGlowRing}>
-              <View style={styles.statusDot} />
+            <View
+              style={[
+                styles.statusGlowRing,
+                !activeStatus && styles.statusGlowRingInactive,
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  !activeStatus && styles.statusDotInactive,
+                ]}
+              />
             </View>
             <Text style={styles.statusText}>
-              {isListening ? 'Listening' : 'Paused'}
+              {activeStatus ? 'Listening' : 'Paused'}
             </Text>
           </View>
 
@@ -218,11 +241,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  statusGlowRingInactive: {
+    backgroundColor: COLORS.sliderTrack,
+    opacity: OPACITY.glowRing,
+  },
   statusDot: {
     width: SPACING.statusDot,
     height: SPACING.statusDot,
     borderRadius: RADIUS.dot,
     backgroundColor: COLORS.teal,
+  },
+  statusDotInactive: {
+    backgroundColor: COLORS.inkSoft,
   },
   statusText: {
     fontFamily: FONTS.body.medium,

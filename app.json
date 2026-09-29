@@ -44,7 +44,15 @@
         {
           "initialOrientation": "LANDSCAPE"
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow ChordApp to access your microphone to listen to piano chords.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-asset"
     ]
   }
 }

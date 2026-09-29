@@ -35,18 +35,9 @@ function AppNavigator() {
       <Stack.Navigator initialRouteName="Onboarding">
         <Stack.Screen
           name="Onboarding"
+          component={OnboardingScreen}
           options={{ headerShown: false }}
-        >
-          {(props) => (
-            <OnboardingScreen
-              {...props}
-              onRequestPermission={() => {
-                // Stub for next phase: transition to the Listen screen
-                props.navigation.navigate('Listen');
-              }}
-            />
-          )}
-        </Stack.Screen>
+        />
         <Stack.Screen
           name="Listen"
           options={{ headerShown: false }}

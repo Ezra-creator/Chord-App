@@ -15,6 +15,8 @@ export const COLORS = {
   blackKey: '#1C1E22',
   divider: '#E7E3DA',
   sliderTrack: '#DAD5CB',
+  error: '#C25D4E',
+  errorSoft: '#F8EBE8',
 } as const;
 
 export const FONTS = {

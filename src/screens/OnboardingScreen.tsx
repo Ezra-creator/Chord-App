@@ -1,7 +1,15 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Linking,
+  ActivityIndicator,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { requestRecordingPermissionsAsync } from 'expo-audio';
 import type { RootStackParamList } from '../navigation/types';
 import {
   COLORS,
@@ -17,10 +25,10 @@ import {
 
 export interface OnboardingScreenProps {
   /**
-   * Callback invoked when the user taps "Enable microphone".
-   * Stubbed for this UI phase to allow transition or test inspection.
+   * Optional custom permission request handler.
+   * If omitted, OnboardingScreen invokes `requestRecordingPermissionsAsync()` from `expo-audio`.
    */
-  onRequestPermission?: () => void;
+  onRequestPermission?: () => Promise<boolean | void> | boolean | void;
 }
 
 export type Props = Partial<NativeStackScreenProps<RootStackParamList, 'Onboarding'>> &
@@ -31,13 +39,56 @@ export const OnboardingScreen: React.FC<Props> = ({
   onRequestPermission,
 }) => {
   const insets = useSafeAreaInsets();
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [canAskAgain, setCanAskAgain] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleRequestPermission = () => {
-    if (onRequestPermission) {
-      onRequestPermission();
-    } else {
-      // Stub implementation for UI phase: navigate to Listen screen
-      navigation?.navigate('Listen');
+  const handleRequestPermission = async () => {
+    setIsLoading(true);
+    setPermissionError(null);
+
+    try {
+      if (onRequestPermission) {
+        const result = await onRequestPermission();
+        if (result === false) {
+          setPermissionError(
+            'Microphone access is required to listen to piano chords. Please grant permission to continue.'
+          );
+          setIsLoading(false);
+          return;
+        }
+        setIsLoading(false);
+        navigation?.navigate('Listen');
+        return;
+      }
+
+      // If permanently denied previously, open system settings
+      if (!canAskAgain) {
+        await Linking.openSettings();
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await requestRecordingPermissionsAsync();
+      if (response.granted) {
+        setPermissionError(null);
+        setIsLoading(false);
+        navigation?.navigate('Listen');
+      } else {
+        setCanAskAgain(response.canAskAgain);
+        setPermissionError(
+          response.canAskAgain
+            ? 'Microphone access was denied. Please allow microphone permission to continue.'
+            : 'Microphone permission was permanently denied. Please enable microphone access in your device settings.'
+        );
+        setIsLoading(false);
+      }
+    } catch (err) {
+      console.warn('Microphone permission request error:', err);
+      setPermissionError(
+        'Unable to request microphone permission. Please check your device settings.'
+      );
+      setIsLoading(false);
     }
   };
 
@@ -76,16 +127,44 @@ export const OnboardingScreen: React.FC<Props> = ({
       {/* Right half: full-width button & caption, vertically centered */}
       <View style={styles.rightHalf}>
         <View style={styles.actionContainer}>
+          {permissionError ? (
+            <View
+              style={styles.errorContainer}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="assertive"
+            >
+              <Text style={styles.errorText}>{permissionError}</Text>
+            </View>
+          ) : null}
+
           <Pressable
             style={({ pressed }) => [
               styles.button,
               pressed && styles.buttonPressed,
+              isLoading && styles.buttonDisabled,
             ]}
             onPress={handleRequestPermission}
+            disabled={isLoading}
             accessibilityRole="button"
-            accessibilityLabel="Enable microphone"
+            accessibilityLabel={
+              permissionError
+                ? !canAskAgain
+                  ? 'Open Settings'
+                  : 'Try again'
+                : 'Enable microphone'
+            }
           >
-            <Text style={styles.buttonText}>Enable microphone</Text>
+            {isLoading ? (
+              <ActivityIndicator color={COLORS.paper} />
+            ) : (
+              <Text style={styles.buttonText}>
+                {permissionError
+                  ? !canAskAgain
+                    ? 'Open Settings'
+                    : 'Try again'
+                  : 'Enable microphone'}
+              </Text>
+            )}
           </Pressable>
 
           <Text style={styles.caption}>Audio stays on your device</Text>
@@ -148,6 +227,22 @@ const styles = StyleSheet.create({
     maxWidth: LAYOUT.buttonMaxWidth,
     alignItems: 'center',
   },
+  errorContainer: {
+    width: '100%',
+    backgroundColor: COLORS.errorSoft,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: STROKE.thin,
+    borderColor: COLORS.error,
+  },
+  errorText: {
+    fontFamily: FONTS.body.medium,
+    fontSize: TYPE_SCALE.caption,
+    color: COLORS.error,
+    textAlign: 'center',
+    lineHeight: TYPE_SCALE.caption * LINE_HEIGHT.subtext,
+  },
   button: {
     width: '100%',
     backgroundColor: COLORS.ink,
@@ -159,6 +254,9 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: OPACITY.pressed,
+  },
+  buttonDisabled: {
+    opacity: OPACITY.caption,
   },
   buttonText: {
     fontFamily: FONTS.body.semiBold,
