@@ -13,6 +13,8 @@ export const COLORS = {
   whiteKey: '#FDFCFA',
   whiteKeyEdge: '#E3E0D8',
   blackKey: '#1C1E22',
+  divider: '#E7E3DA',
+  sliderTrack: '#DAD5CB',
 } as const;
 
 export const FONTS = {
@@ -32,6 +34,7 @@ export const TYPE_SCALE = {
   chordName: 46,
   chordNameMin: 30,
   screenTitle: 22,
+  settingsTitle: 19,
   body: 14,
   subtext: 13,
   label: 12,
@@ -47,8 +50,16 @@ export const SPACING = {
   md: 12,
   buttonPadding: 14,
   topRowTop: 14,
+  rowVertical: 14,
   lg: 16,
   statusRing: 16,
+  sliderThumb: 14,
+  sliderThumbGlow: 28,
+  sliderTrackHeight: 4,
+  switchTrackWidth: 46,
+  switchTrackHeight: 26,
+  switchThumbSize: 22,
+  switchThumbTravel: 20,
   xl: 22,
   xxl: 32,
   mark: 48,
@@ -85,6 +96,7 @@ export const LINE_HEIGHT = {
 export const LAYOUT = {
   contentMaxWidth: 400,
   buttonMaxWidth: 340,
+  settingsPanelMaxWidth: 420,
 } as const;
 
 export const PIANO = {
