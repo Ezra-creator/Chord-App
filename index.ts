@@ -1,3 +1,10 @@
+import { NativeModules } from 'react-native';
+
+// Guard against onnxruntime-react-native crash in environments without compiled native C++ binary (Expo Go)
+if (!NativeModules.Onnxruntime && typeof (globalThis as any).OrtApi === 'undefined') {
+  (globalThis as any).OrtApi = null;
+}
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

@@ -1,5 +1,9 @@
+import { NativeModules } from 'react-native';
 import { Asset } from 'expo-asset';
-import { InferenceSession, Tensor } from 'onnxruntime-react-native';
+import type {
+  InferenceSession,
+  Tensor as TensorType,
+} from 'onnxruntime-react-native';
 import type { AudioBufferWindow } from './types';
 import { PIANO } from '../theme/tokens';
 
@@ -77,6 +81,26 @@ export function prepareModelInput(
   return target;
 }
 
+let onnxModule: typeof import('onnxruntime-react-native') | null = null;
+
+function getOnnxModule(): typeof import('onnxruntime-react-native') | null {
+  if (onnxModule) return onnxModule;
+  if (!NativeModules.Onnxruntime) {
+    return null;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    onnxModule = require('onnxruntime-react-native');
+    return onnxModule;
+  } catch (err) {
+    console.warn(
+      '[NoteDetectionModel] Failed to load onnxruntime-react-native:',
+      err
+    );
+    return null;
+  }
+}
+
 class NoteDetectionModelService {
   private session: InferenceSession | null = null;
   private isInitializing: boolean = false;
@@ -93,6 +117,14 @@ class NoteDetectionModelService {
     this.isInitializing = true;
 
     try {
+      const onnx = getOnnxModule();
+      if (!onnx) {
+        console.log(
+          '[NoteDetectionModel] Native ONNX module not available in current environment (using fallback pitch processor).'
+        );
+        return;
+      }
+
       // Resolve the bundled local model asset
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const modelAsset = Asset.fromModule(require('../../assets/model/basic_pitch.onnx'));
@@ -103,7 +135,7 @@ class NoteDetectionModelService {
         throw new Error('Failed to resolve local URI for basic_pitch.onnx');
       }
 
-      this.session = await InferenceSession.create(modelPath);
+      this.session = await onnx.InferenceSession.create(modelPath);
 
       if (this.session.inputNames && this.session.inputNames.length > 0) {
         this.modelInputName = this.session.inputNames[0];
@@ -159,10 +191,11 @@ class NoteDetectionModelService {
       const inputData = prepareModelInput(buffer.samples, buffer.sampleRate);
       const scores = new Float32Array(PIANO.totalKeys);
 
-      if (this.session) {
+      const onnx = getOnnxModule();
+      if (this.session && onnx) {
         // Run ONNX inference off-thread via onnxruntime-react-native (runs in native C++ worker thread)
-        const tensor = new Tensor('float32', inputData, [1, MODEL_INPUT_LENGTH]);
-        const feeds: Record<string, Tensor> = { [this.modelInputName]: tensor };
+        const tensor = new onnx.Tensor('float32', inputData, [1, MODEL_INPUT_LENGTH]);
+        const feeds: Record<string, TensorType> = { [this.modelInputName]: tensor };
         const results = await this.session.run(feeds);
 
         // Find the note output tensor (shape [1, 172, 88])
