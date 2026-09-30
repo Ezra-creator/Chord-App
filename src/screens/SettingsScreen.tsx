@@ -14,19 +14,21 @@ import {
   LAYOUT,
 } from '../theme/tokens';
 
+import { useSettings } from '../settings';
+
 export interface SettingsScreenProps {
   /**
-   * Initial toggle state for showing note names (default true).
+   * Initial toggle state for showing note names. If omitted, uses current saved settings.
    */
   initialShowNoteNames?: boolean;
 
   /**
-   * Initial toggle state for keeping screen awake (default true).
+   * Initial toggle state for keeping screen awake. If omitted, uses current saved settings.
    */
   initialKeepScreenAwake?: boolean;
 
   /**
-   * Initial microphone sensitivity value (default 0.65).
+   * Initial microphone sensitivity value. If omitted, uses current saved settings.
    */
   initialSensitivity?: number;
 
@@ -44,20 +46,28 @@ export type Props = Partial<NativeStackScreenProps<RootStackParamList, 'Settings
   SettingsScreenProps;
 
 export const SettingsScreen: React.FC<Props> = ({
-  initialShowNoteNames = true,
-  initialKeepScreenAwake = true,
-  initialSensitivity = 0.65,
+  initialShowNoteNames,
+  initialKeepScreenAwake,
+  initialSensitivity,
   onSettingsChange,
   navigation,
 }) => {
   const insets = useSafeAreaInsets();
+  const { settings, updateSettings } = useSettings();
 
-  const [showNoteNames, setShowNoteNames] = useState(initialShowNoteNames);
-  const [keepScreenAwake, setKeepScreenAwake] = useState(initialKeepScreenAwake);
-  const [sensitivity, setSensitivity] = useState(initialSensitivity);
+  const [showNoteNames, setShowNoteNames] = useState(
+    initialShowNoteNames ?? settings.showNoteNames
+  );
+  const [keepScreenAwake, setKeepScreenAwake] = useState(
+    initialKeepScreenAwake ?? settings.keepScreenAwake
+  );
+  const [sensitivity, setSensitivity] = useState(
+    initialSensitivity ?? settings.sensitivity
+  );
 
   const handleShowNoteNamesChange = (value: boolean) => {
     setShowNoteNames(value);
+    updateSettings({ showNoteNames: value });
     onSettingsChange?.({
       showNoteNames: value,
       keepScreenAwake,
@@ -67,6 +77,7 @@ export const SettingsScreen: React.FC<Props> = ({
 
   const handleKeepScreenAwakeChange = (value: boolean) => {
     setKeepScreenAwake(value);
+    updateSettings({ keepScreenAwake: value });
     onSettingsChange?.({
       showNoteNames,
       keepScreenAwake: value,
@@ -76,6 +87,7 @@ export const SettingsScreen: React.FC<Props> = ({
 
   const handleSensitivityChange = (value: number) => {
     setSensitivity(value);
+    updateSettings({ sensitivity: value });
     onSettingsChange?.({
       showNoteNames,
       keepScreenAwake,

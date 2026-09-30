@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useWindowDimensions, StyleSheet, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -23,8 +23,14 @@ import { ListenScreen } from './src/screens/ListenScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { RotatePrompt } from './src/components/RotatePrompt';
 import type { RootStackParamList } from './src/navigation/types';
+import {
+  SettingsProvider,
+  loadPersistedSettings,
+  DEFAULT_SETTINGS,
+  type AppSettings,
+} from './src/settings';
 
-// Prevent splash screen from auto-hiding before fonts are loaded
+// Prevent splash screen from auto-hiding before fonts and settings are loaded
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -40,19 +46,9 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="Listen"
+          component={ListenScreen}
           options={{ headerShown: false }}
-        >
-          {(props) => (
-            <ListenScreen
-              {...props}
-              currentChord="Am7"
-              activeNotes={[57, 60, 64, 67]}
-              notesList="A · C · E · G"
-              previousChords={['Dm7', 'G7', 'Cmaj7', 'Fmaj7']}
-              isListening={true}
-            />
-          )}
-        </Stack.Screen>
+        />
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
@@ -77,6 +73,24 @@ export default function App() {
     IBMPlexSans_600SemiBold,
   });
 
+  // Load persisted app settings on startup before rendering screens
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [initialSettings, setInitialSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    let isMounted = true;
+    loadPersistedSettings().then((loaded) => {
+      if (isMounted) {
+        setInitialSettings(loaded);
+        setSettingsLoaded(true);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Lock to landscape (both landscape-left and landscape-right) at launch
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(
@@ -86,24 +100,26 @@ export default function App() {
     );
   }, []);
 
-  // Hide splash screen once fonts are loaded
+  // Hide splash screen once fonts AND settings are fully loaded
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if ((fontsLoaded || fontError) && settingsLoaded) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, settingsLoaded]);
 
-  // Loading gate: do not render app until fonts are loaded
-  if (!fontsLoaded && !fontError) {
+  // Loading gate: do not render app until fonts and persisted settings are loaded
+  if ((!fontsLoaded && !fontError) || !settingsLoaded) {
     return null;
   }
 
   return (
     <SafeAreaProvider>
       <StatusBar hidden={false} style="dark" />
-      <View style={styles.container}>
-        {isPortrait ? <RotatePrompt /> : <AppNavigator />}
-      </View>
+      <SettingsProvider initialSettings={initialSettings}>
+        <View style={styles.container}>
+          {isPortrait ? <RotatePrompt /> : <AppNavigator />}
+        </View>
+      </SettingsProvider>
     </SafeAreaProvider>
   );
 }

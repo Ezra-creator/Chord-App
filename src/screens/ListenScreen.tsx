@@ -1,18 +1,21 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { PianoKeyboard } from '../components/PianoKeyboard';
 import { useNoteDetection } from '../hooks/useNoteDetection';
 import { useStableNotes } from '../audio';
 import { inferChord, ChordStabilizer } from '../chord-engine';
+import { useSettings, sensitivityToThreshold } from '../settings';
 import {
   COLORS,
   FONTS,
   TYPE_SCALE,
   SPACING,
   RADIUS,
+  STROKE,
   OPACITY,
 } from '../theme/tokens';
 
@@ -46,6 +49,24 @@ export interface ListenScreenProps {
    * Whether the microphone is actively listening.
    */
   isListening?: boolean;
+
+  /**
+   * Whether to display the individual notes line under the chord.
+   * If omitted, driven by Settings.
+   */
+  showNoteNames?: boolean;
+
+  /**
+   * Whether to prevent display from sleeping.
+   * If omitted, driven by Settings.
+   */
+  keepScreenAwake?: boolean;
+
+  /**
+   * Detection sensitivity slider value (0.0 to 1.0).
+   * If omitted, driven by Settings.
+   */
+  sensitivity?: number;
 }
 
 export type Props = Partial<NativeStackScreenProps<RootStackParamList, 'Listen'>> &
@@ -97,9 +118,34 @@ export const ListenScreen: React.FC<Props> = ({
   notesList: propNotesList,
   previousChords: propPreviousChords,
   isListening = true,
+  showNoteNames: propShowNoteNames,
+  keepScreenAwake: propKeepScreenAwake,
+  sensitivity: propSensitivity,
+  navigation,
 }) => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { settings } = useSettings();
+
+  // Settings with optional prop overrides
+  const effectiveShowNoteNames = propShowNoteNames ?? settings.showNoteNames;
+  const effectiveKeepScreenAwake = propKeepScreenAwake ?? settings.keepScreenAwake;
+  const effectiveSensitivity = propSensitivity ?? settings.sensitivity;
+
+  // Map sensitivity slider to dynamic noteStabilizer threshold at runtime
+  const dynamicThreshold = sensitivityToThreshold(effectiveSensitivity);
+
+  // Keep screen awake while active if setting enabled
+  useEffect(() => {
+    if (effectiveKeepScreenAwake) {
+      activateKeepAwakeAsync().catch(() => {});
+      return () => {
+        deactivateKeepAwake().catch(() => {});
+      };
+    } else {
+      deactivateKeepAwake().catch(() => {});
+    }
+  }, [effectiveKeepScreenAwake]);
 
   // Live chord engine state
   const [liveCurrentChord, setLiveCurrentChord] = useState<string | null>(null);
@@ -171,7 +217,9 @@ export const ListenScreen: React.FC<Props> = ({
   });
 
   // Stabilize note activations across consecutive frames with onset debouncing and hysteresis
+  // Feeds live dynamic sensitivity threshold mapped directly from settings
   const stableNotes = useStableNotes(scores, {
+    threshold: dynamicThreshold,
     onStableNotesChange: handleStableNotesChange,
   });
 
@@ -240,14 +288,14 @@ export const ListenScreen: React.FC<Props> = ({
           >
             {effectiveChord}
           </Text>
-          {displayNoteList ? (
+          {effectiveShowNoteNames && displayNoteList ? (
             <Text style={[styles.noteList, isIdle && styles.noteListIdle]}>
               {displayNoteList}
             </Text>
           ) : null}
         </View>
 
-        {/* Right: Status indicator & previous chords trail */}
+        {/* Right: Status indicator, settings action & previous chords trail */}
         <View style={styles.rightHeader}>
           <View style={styles.statusRow}>
             <View
@@ -266,6 +314,20 @@ export const ListenScreen: React.FC<Props> = ({
             <Text style={styles.statusText}>
               {activeStatus ? 'Listening' : 'Paused'}
             </Text>
+            {navigation?.navigate ? (
+              <Pressable
+                onPress={() => navigation.navigate('Settings')}
+                accessibilityRole="button"
+                accessibilityLabel="Open settings"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={({ pressed }) => [
+                  styles.settingsButton,
+                  pressed && styles.settingsButtonPressed,
+                ]}
+              >
+                <Text style={styles.settingsButtonText}>Settings</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {effectivePreviousChords && effectivePreviousChords.length > 0 && (
@@ -376,6 +438,23 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SCALE.caption,
     color: COLORS.inkSoft,
     marginLeft: SPACING.sm,
+  },
+  settingsButton: {
+    marginLeft: SPACING.md,
+    paddingVertical: 2,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: STROKE.thin,
+    borderColor: COLORS.divider,
+    backgroundColor: COLORS.paper,
+  },
+  settingsButtonPressed: {
+    opacity: OPACITY.pressed,
+  },
+  settingsButtonText: {
+    fontFamily: FONTS.body.medium,
+    fontSize: TYPE_SCALE.caption,
+    color: COLORS.inkSoft,
   },
   previousChordsTrail: {
     flexDirection: 'row',
