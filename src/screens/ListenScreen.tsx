@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { PianoKeyboard } from '../components/PianoKeyboard';
 import { useNoteDetection } from '../hooks/useNoteDetection';
-import { useStableNotes, midiToNoteName } from '../audio';
+import { useStableNotes } from '../audio';
+import { inferChord, ChordStabilizer } from '../chord-engine';
 import {
   COLORS,
   FONTS,
@@ -18,12 +19,14 @@ import {
 export interface ListenScreenProps {
   /**
    * Currently detected chord name (e.g. 'Am7').
+   * If omitted, driven by live audio pipeline.
    */
   currentChord?: string;
 
   /**
    * Active notes to highlight on the piano keyboard.
    * Accepts MIDI note numbers (21-108) or note names (e.g. 'A3', 'C4').
+   * If omitted, driven by live audio pipeline.
    */
   activeNotes?: (number | string)[];
 
@@ -35,6 +38,7 @@ export interface ListenScreenProps {
 
   /**
    * Chronological list of previously detected chords.
+   * If omitted, driven by live audio pipeline.
    */
   previousChords?: string[];
 
@@ -66,63 +70,137 @@ function deriveNoteList(activeNotes?: (number | string)[]): string {
   if (!activeNotes || activeNotes.length === 0) return '';
   const names = activeNotes.map((note) => {
     if (typeof note === 'number') {
-      return PITCH_CLASSES[note % 12];
+      return PITCH_CLASSES[((note % 12) + 12) % 12];
     }
     return note.replace(/\d+$/, '');
   });
   return Array.from(new Set(names)).join(' · ');
 }
 
+function pushToTrail(
+  trail: string[],
+  chordToPush: string,
+  maxLen: number = 4
+): string[] {
+  if (!chordToPush) return trail;
+  // Prevent duplicate adjacent entries in the trail
+  if (trail.length > 0 && trail[trail.length - 1] === chordToPush) {
+    return trail;
+  }
+  const next = [...trail, chordToPush];
+  return next.length > maxLen ? next.slice(next.length - maxLen) : next;
+}
+
 export const ListenScreen: React.FC<Props> = ({
-  currentChord = 'Am7',
-  activeNotes = [57, 60, 64, 67], // A3, C4, E4, G4
-  notesList,
-  previousChords = ['Dm7', 'G7', 'Cmaj7', 'Fmaj7'],
+  currentChord: propCurrentChord,
+  activeNotes: propActiveNotes,
+  notesList: propNotesList,
+  previousChords: propPreviousChords,
   isListening = true,
 }) => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+  // Live chord engine state
+  const [liveCurrentChord, setLiveCurrentChord] = useState<string | null>(null);
+  const [livePreviousChords, setLivePreviousChords] = useState<string[]>([]);
+  const lastCommittedChordRef = useRef<string | null>(null);
+
+  // Pure TypeScript chord stabilizer
+  const chordStabilizerRef = useRef<ChordStabilizer>(
+    new ChordStabilizer({
+      minCommitFrames: 1,
+      clearFrames: 1,
+    })
+  );
+
+  useEffect(() => {
+    const stabilizer = chordStabilizerRef.current;
+    return () => {
+      stabilizer.reset();
+    };
+  }, []);
+
+  // Callback fed into note stabilizer: fires ONLY when the stabilized note set changes
+  const handleStableNotesChange = useCallback((notes: number[]) => {
+    // 1. Feed active notes into chord recognition engine
+    const candidate = inferChord(notes);
+
+    // 2. Feed candidate into chord stability state machine
+    const { committedChord, hasChanged } =
+      chordStabilizerRef.current.processChord(candidate);
+
+    if (hasChanged) {
+      if (committedChord && committedChord.displayName) {
+        const chordName = committedChord.displayName;
+
+        // If transitioning from a previous different chord, push it to history
+        if (
+          lastCommittedChordRef.current &&
+          lastCommittedChordRef.current !== chordName
+        ) {
+          setLivePreviousChords((prev) =>
+            pushToTrail(prev, lastCommittedChordRef.current!, 4)
+          );
+        } else if (!lastCommittedChordRef.current) {
+          // If returning to a chord that was at the end of the trail, trim it
+          setLivePreviousChords((prev) =>
+            prev.length > 0 && prev[prev.length - 1] === chordName
+              ? prev.slice(0, -1)
+              : prev
+          );
+        }
+
+        lastCommittedChordRef.current = chordName;
+        setLiveCurrentChord(chordName);
+      } else {
+        // Nothing playing (empty notes or silence committed)
+        if (lastCommittedChordRef.current) {
+          setLivePreviousChords((prev) =>
+            pushToTrail(prev, lastCommittedChordRef.current!, 4)
+          );
+        }
+        setLiveCurrentChord(null);
+      }
+    }
+  }, []);
+
   // Connect continuous audio stream and run on-device note detection inference
   const { isStreaming, scores } = useNoteDetection({
     autoStart: isListening,
-    onNotesDetected: (result) => {
-      if (result.detectedNotes.length > 0) {
-        const topNotesSummary = result.detectedNotes
-          .map(
-            (n) => `${n.name} (MIDI ${n.midi}, ${(n.confidence * 100).toFixed(0)}%)`
-          )
-          .join(', ');
-        console.log(
-          `[NoteDetection] ${new Date(result.timestamp).toISOString()} - Top notes: ${topNotesSummary}`
-        );
-      }
-    },
   });
 
   // Stabilize note activations across consecutive frames with onset debouncing and hysteresis
-  useStableNotes(scores, {
-    onStableNotesChange: (notes) => {
-      if (notes.length > 0) {
-        const stableSummary = notes
-          .map((midi) => `${midiToNoteName(midi)} (MIDI ${midi})`)
-          .join(', ');
-        console.log(`[StableNotes] Active notes (${notes.length}): ${stableSummary}`);
-      } else {
-        console.log('[StableNotes] Active notes (0): None (cleared)');
-      }
-    },
+  const stableNotes = useStableNotes(scores, {
+    onStableNotesChange: handleStableNotesChange,
   });
 
   const activeStatus = isListening && isStreaming;
+
+  // Resolve effective data source (props override live state if provided)
+  const effectiveActiveNotes = propActiveNotes ?? stableNotes;
+  const effectivePreviousChords = propPreviousChords ?? livePreviousChords;
+
+  // Explicitly handle "nothing playing" idle state
+  const isIdle =
+    propCurrentChord === undefined &&
+    (!liveCurrentChord || effectiveActiveNotes.length === 0);
+
+  const effectiveChord = propCurrentChord ?? (isIdle ? '—' : liveCurrentChord);
+
+  const displayNoteList =
+    propNotesList ??
+    (effectiveActiveNotes.length > 0
+      ? deriveNoteList(effectiveActiveNotes)
+      : activeStatus
+        ? 'Listening for notes…'
+        : 'Microphone paused');
 
   // Clamp chord name font size between ~30 and 46
   const chordFontSize = Math.min(
     TYPE_SCALE.chordName,
     Math.max(TYPE_SCALE.chordNameMin, Math.round(width * 0.045))
   );
-
-  const displayNoteList = notesList ?? deriveNoteList(activeNotes);
 
   return (
     <View
@@ -147,15 +225,25 @@ export const ListenScreen: React.FC<Props> = ({
         {/* Left: Chord name & note list */}
         <View style={styles.chordInfo}>
           <Text
-            style={[styles.chordName, { fontSize: chordFontSize }]}
+            style={[
+              styles.chordName,
+              isIdle && styles.chordNameIdle,
+              { fontSize: chordFontSize },
+            ]}
             numberOfLines={1}
             accessibilityRole="header"
-            accessibilityLabel={`Current chord: ${currentChord}`}
+            accessibilityLabel={
+              isIdle
+                ? 'No chord detected. Listening for notes.'
+                : `Current chord: ${effectiveChord}`
+            }
           >
-            {currentChord}
+            {effectiveChord}
           </Text>
           {displayNoteList ? (
-            <Text style={styles.noteList}>{displayNoteList}</Text>
+            <Text style={[styles.noteList, isIdle && styles.noteListIdle]}>
+              {displayNoteList}
+            </Text>
           ) : null}
         </View>
 
@@ -180,13 +268,13 @@ export const ListenScreen: React.FC<Props> = ({
             </Text>
           </View>
 
-          {previousChords && previousChords.length > 0 && (
+          {effectivePreviousChords && effectivePreviousChords.length > 0 && (
             <View
               style={styles.previousChordsTrail}
               accessibilityLabel="Previous chords trail"
             >
-              {previousChords.map((chord, index) => {
-                const isLatest = index === previousChords.length - 1;
+              {effectivePreviousChords.map((chord, index) => {
+                const isLatest = index === effectivePreviousChords.length - 1;
                 return (
                   <React.Fragment key={`${chord}-${index}`}>
                     {index > 0 && (
@@ -215,7 +303,7 @@ export const ListenScreen: React.FC<Props> = ({
 
       {/* 2. Full 88-key piano keyboard filling remaining vertical space */}
       <View style={styles.keyboardContainer}>
-        <PianoKeyboard activeNotes={activeNotes} />
+        <PianoKeyboard activeNotes={effectiveActiveNotes} />
       </View>
     </View>
   );
@@ -241,11 +329,18 @@ const styles = StyleSheet.create({
     color: COLORS.ink,
     includeFontPadding: false,
   },
+  chordNameIdle: {
+    fontFamily: FONTS.display.medium,
+    color: COLORS.inkSoft,
+  },
   noteList: {
     fontFamily: FONTS.body.regular,
     fontSize: TYPE_SCALE.label,
     color: COLORS.inkSoft,
     marginTop: SPACING.xs,
+  },
+  noteListIdle: {
+    opacity: OPACITY.caption,
   },
   rightHeader: {
     alignItems: 'flex-end',
@@ -305,3 +400,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
   },
 });
+
