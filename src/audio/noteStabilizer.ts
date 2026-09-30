@@ -34,6 +34,10 @@ export const DEFAULT_MIN_ON_FRAMES = 2;
  */
 export const DEFAULT_HYSTERESIS_OFF_FRAMES = 2;
 
+console.log(
+  `[STARTUP-CONFIG] noteStabilizer default constants: threshold=${DEFAULT_STABILITY_THRESHOLD}, minOnFrames=${DEFAULT_MIN_ON_FRAMES}, hysteresisOffFrames=${DEFAULT_HYSTERESIS_OFF_FRAMES}`
+);
+
 /**
  * Configuration options for note stabilization logic.
  */
@@ -183,6 +187,10 @@ export class NoteStabilizer {
         }
       }
       this.currentActiveNotes = nextNotes;
+
+      console.log(
+        `[3-STABILIZED] activeNotes=[${this.currentActiveNotes.join(', ')}] | threshold=${threshold} | minOnFrames=${minOnFrames} | hysteresisOffFrames=${hysteresisOffFrames}`
+      );
     }
 
     return {
@@ -275,6 +283,17 @@ export function useStableNotes(
       hysteresisOffFrames,
     });
   }, [stabilizer, threshold, minOnFrames, hysteresisOffFrames]);
+
+  // Log active configuration once at startup
+  const loggedStartupRef = useRef(false);
+  useEffect(() => {
+    if (!loggedStartupRef.current) {
+      loggedStartupRef.current = true;
+      console.log(
+        `[STARTUP-CONFIG] NoteStabilizer in effect: threshold=${threshold}, minOnFrames=${minOnFrames}, hysteresisOffFrames=${hysteresisOffFrames}`
+      );
+    }
+  }, [threshold, minOnFrames, hysteresisOffFrames]);
 
   const onStableNotesChangeRef = useRef(onStableNotesChange);
   useEffect(() => {

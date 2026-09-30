@@ -246,6 +246,32 @@ class NoteDetectionModelService {
         this.runFallbackPitchEstimation(inputData, scores);
       }
 
+      // [2-MODEL-RAW] Log raw output before any confidence thresholding
+      let nonZeroCount = 0;
+      const rawEntries: { midi: number; name: string; confidence: number }[] = [];
+      for (let i = 0; i < scores.length; i++) {
+        const conf = scores[i];
+        if (conf > 0) {
+          nonZeroCount++;
+          const midi = PIANO.minMidi + i;
+          rawEntries.push({ midi, name: midiToNoteName(midi), confidence: conf });
+        }
+      }
+      rawEntries.sort((a, b) => b.confidence - a.confidence);
+      const top5 = rawEntries.slice(0, 5);
+      const top5Str =
+        top5.length > 0
+          ? top5
+              .map(
+                (p) =>
+                  `${p.name}(MIDI ${p.midi}): ${(p.confidence * 100).toFixed(1)}%`
+              )
+              .join(', ')
+          : 'none';
+      console.log(
+        `[2-MODEL-RAW] nonZeroPitches=${nonZeroCount}/88 | top5=[${top5Str}]`
+      );
+
       // Collect detected notes above confidence threshold
       const detectedNotes: DetectedNote[] = [];
       for (let i = 0; i < scores.length; i++) {

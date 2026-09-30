@@ -265,6 +265,10 @@ class AudioCaptureService {
       timestamp: Date.now(),
     };
 
+    console.log(
+      `[1-CAPTURE] buffer arrived at ${bufferWindow.timestamp} (${new Date(bufferWindow.timestamp).toISOString()}) | samples=${bufferWindow.samples.length} | duration=${bufferWindow.durationSec}s | sampleRate=${sampleRate}Hz`
+    );
+
     for (const listener of this.bufferListeners) {
       try {
         listener(bufferWindow);

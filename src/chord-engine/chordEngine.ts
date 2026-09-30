@@ -275,7 +275,7 @@ export function inferChord(activeMidiNotes: readonly number[]): ChordResult {
     analyzePitchClasses(activeMidiNotes);
 
   if (pitchClasses.size === 0) {
-    return {
+    const emptyResult: ChordResult = {
       root: '',
       quality: '',
       bassNote: '',
@@ -285,6 +285,10 @@ export function inferChord(activeMidiNotes: readonly number[]): ChordResult {
       confidence: 0,
       secondBest: null,
     };
+    console.log(
+      `[4-CHORD] inputNotes=[${activeMidiNotes.join(', ')}] -> { root: "${emptyResult.root}", quality: "${emptyResult.quality}", confidence: ${emptyResult.confidence} } (display: "${emptyResult.displayName || '—'}")`
+    );
+    return emptyResult;
   }
 
   const candidates: ChordCandidate[] = [];
@@ -307,7 +311,7 @@ export function inferChord(activeMidiNotes: readonly number[]): ChordResult {
   if (candidates.length === 0) {
     // Single note fallback or unrecognized cluster
     const singleRoot = bassNoteName || sortedActiveNotes[0] || '';
-    return {
+    const fallbackResult: ChordResult = {
       root: singleRoot,
       quality: '',
       bassNote: singleRoot,
@@ -317,6 +321,10 @@ export function inferChord(activeMidiNotes: readonly number[]): ChordResult {
       confidence: 0.3,
       secondBest: null,
     };
+    console.log(
+      `[4-CHORD] inputNotes=[${activeMidiNotes.join(', ')}] -> { root: "${fallbackResult.root}", quality: "${fallbackResult.quality}", confidence: ${fallbackResult.confidence} } (display: "${fallbackResult.displayName || '—'}")`
+    );
+    return fallbackResult;
   }
 
   // Sort candidates by score descending
@@ -333,7 +341,7 @@ export function inferChord(activeMidiNotes: readonly number[]): ChordResult {
     }
   }
 
-  return {
+  const result: ChordResult = {
     root: top.root,
     quality: top.quality,
     bassNote: top.bassNote,
@@ -343,4 +351,10 @@ export function inferChord(activeMidiNotes: readonly number[]): ChordResult {
     confidence: top.confidence,
     secondBest,
   };
+
+  console.log(
+    `[4-CHORD] inputNotes=[${activeMidiNotes.join(', ')}] -> { root: "${result.root}", quality: "${result.quality}", confidence: ${result.confidence} } (display: "${result.displayName || '—'}")`
+  );
+
+  return result;
 }

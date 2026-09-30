@@ -284,6 +284,39 @@ export const ListenScreen: React.FC<Props> = ({
     Math.max(TYPE_SCALE.chordNameMin, Math.round(width * 0.045))
   );
 
+  // Log stabilization configuration currently in effect once at startup
+  const startupConfigLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!startupConfigLoggedRef.current) {
+      startupConfigLoggedRef.current = true;
+      console.log(
+        `[STARTUP-CONFIG] ListenScreen active parameters: threshold=${dynamicThreshold.toFixed(2)} (sensitivity: ${effectiveSensitivity}), minOnFrames=2, hysteresisOffFrames=2`
+      );
+    }
+  }, [dynamicThreshold, effectiveSensitivity]);
+
+  // [5-UI-STATE] Log every time currentChord or activeNotes actually changes in component state
+  const prevUiStateRef = useRef<{ chord: string | null; notes: string }>({
+    chord: null,
+    notes: '',
+  });
+
+  useEffect(() => {
+    const notesKey = (effectiveActiveNotes || []).join(',');
+    if (
+      prevUiStateRef.current.chord !== effectiveChord ||
+      prevUiStateRef.current.notes !== notesKey
+    ) {
+      prevUiStateRef.current = {
+        chord: effectiveChord,
+        notes: notesKey,
+      };
+      console.log(
+        `[5-UI-STATE] UI state updated -> currentChord="${effectiveChord}" | activeNotes=[${(effectiveActiveNotes || []).join(', ')}]`
+      );
+    }
+  }, [effectiveChord, effectiveActiveNotes]);
+
   return (
     <View
       style={[
