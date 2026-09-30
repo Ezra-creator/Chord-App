@@ -20,6 +20,18 @@ export interface UseNoteDetectionOptions {
   onNotesDetected?: (result: NoteDetectionResult) => void;
 }
 
+export interface LatencyMetrics {
+  /**
+   * Time in milliseconds taken for ONNX model inference on the latest buffer.
+   */
+  inferenceMs: number;
+
+  /**
+   * Elapsed time from audio buffer capture dispatch to inference completion in milliseconds.
+   */
+  endToEndMs: number;
+}
+
 export interface UseNoteDetectionResult {
   /**
    * Whether audio stream is actively capturing.
@@ -45,6 +57,16 @@ export interface UseNoteDetectionResult {
    * Raw 88-element Float32Array of activation scores for all keys.
    */
   scores: Float32Array;
+
+  /**
+   * Measured latency metrics for audio buffer processing.
+   */
+  latency: LatencyMetrics;
+
+  /**
+   * Microphone capture or permission error, if any.
+   */
+  error: Error | null;
 
   /**
    * Start audio capture and detection.
@@ -74,6 +96,11 @@ export function useNoteDetection(
   const [scores, setScores] = useState<Float32Array>(
     () => new Float32Array(PIANO.totalKeys)
   );
+
+  const [latency, setLatency] = useState<LatencyMetrics>({
+    inferenceMs: 0,
+    endToEndMs: 0,
+  });
 
   const isInferringRef = useRef(false);
   const onNotesDetectedRef = useRef(onNotesDetected);
@@ -107,8 +134,13 @@ export function useNoteDetection(
     }
 
     isInferringRef.current = true;
+    const t0 = Date.now();
     try {
       const result = await noteDetectionModel.predictNotes(buffer);
+      const inferenceMs = Date.now() - t0;
+      const endToEndMs = Date.now() - (buffer.timestamp || t0);
+      setLatency({ inferenceMs, endToEndMs });
+
       setScores(result.scores);
       setDetectedNotes(result.detectedNotes);
       setActiveNotes(result.detectedNotes.map((n) => n.midi));
@@ -120,7 +152,7 @@ export function useNoteDetection(
     }
   }, []);
 
-  const { isStreaming, start, stop } = useAudioStream({
+  const { isStreaming, error, start, stop } = useAudioStream({
     autoStart,
     onBuffer: handleBuffer,
   });
@@ -131,6 +163,8 @@ export function useNoteDetection(
     detectedNotes,
     activeNotes,
     scores,
+    latency,
+    error,
     start,
     stop,
   };

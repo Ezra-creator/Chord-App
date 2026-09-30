@@ -91,13 +91,31 @@ export default function App() {
     };
   }, []);
 
-  // Lock to landscape (both landscape-left and landscape-right) at launch
+  // Lock to landscape and re-assert on orientation changes / OS prompt dismissal
   useEffect(() => {
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(
-      (err) => {
-        console.warn('Failed to lock screen orientation:', err);
+    const lockLandscape = () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(
+        (err) => {
+          console.warn('Failed to lock screen orientation:', err);
+        }
+      );
+    };
+
+    lockLandscape();
+
+    const subscription = ScreenOrientation.addOrientationChangeListener((event) => {
+      const o = event.orientationInfo.orientation;
+      if (
+        o === ScreenOrientation.Orientation.PORTRAIT_UP ||
+        o === ScreenOrientation.Orientation.PORTRAIT_DOWN
+      ) {
+        lockLandscape();
       }
-    );
+    });
+
+    return () => {
+      ScreenOrientation.removeOrientationChangeListener(subscription);
+    };
   }, []);
 
   // Hide splash screen once fonts AND settings are fully loaded
@@ -117,7 +135,13 @@ export default function App() {
       <StatusBar hidden={false} style="dark" />
       <SettingsProvider initialSettings={initialSettings}>
         <View style={styles.container}>
-          {isPortrait ? <RotatePrompt /> : <AppNavigator />}
+          {/* Keep AppNavigator continuously mounted so state, permissions, and audio stream are preserved */}
+          <AppNavigator />
+          {isPortrait ? (
+            <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+              <RotatePrompt />
+            </View>
+          ) : null}
         </View>
       </SettingsProvider>
     </SafeAreaProvider>

@@ -1,15 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppSettings, DEFAULT_SETTINGS } from './types';
 import { noteStabilizer } from '../audio/noteStabilizer';
+import { sensitivityToThreshold } from './sensitivityMapping';
 
 export const SETTINGS_STORAGE_KEY = '@chord_app_settings';
-
-import {
-  sensitivityToThreshold,
-  thresholdToSensitivity,
-} from './sensitivityMapping';
-
-export { sensitivityToThreshold, thresholdToSensitivity };
 
 /**
  * Applies runtime side-effects of settings, such as updating the noteStabilizer's

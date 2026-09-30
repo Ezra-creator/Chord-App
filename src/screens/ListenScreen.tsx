@@ -1,5 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  AppState,
+  Linking,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -212,9 +220,27 @@ export const ListenScreen: React.FC<Props> = ({
   }, []);
 
   // Connect continuous audio stream and run on-device note detection inference
-  const { isStreaming, scores } = useNoteDetection({
+  const {
+    isStreaming,
+    scores,
+    error: micError,
+    start: startAudio,
+  } = useNoteDetection({
     autoStart: isListening,
   });
+
+  // Automatically resume audio capture if mic permission is granted in device settings
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && isListening && micError) {
+        startAudio().catch(() => {});
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isListening, micError, startAudio]);
 
   // Stabilize note activations across consecutive frames with onset debouncing and hysteresis
   // Feeds live dynamic sensitivity threshold mapped directly from settings
@@ -223,7 +249,7 @@ export const ListenScreen: React.FC<Props> = ({
     onStableNotesChange: handleStableNotesChange,
   });
 
-  const activeStatus = isListening && isStreaming;
+  const activeStatus = isListening && isStreaming && !micError;
 
   // Resolve effective data source (props override live state if provided)
   const effectiveActiveNotes = propActiveNotes ?? stableNotes;
@@ -240,9 +266,11 @@ export const ListenScreen: React.FC<Props> = ({
     propNotesList ??
     (effectiveActiveNotes.length > 0
       ? deriveNoteList(effectiveActiveNotes)
-      : activeStatus
-        ? 'Listening for notes…'
-        : 'Microphone paused');
+      : micError
+        ? 'Microphone permission required'
+        : activeStatus
+          ? 'Listening for notes…'
+          : 'Microphone paused');
 
   // Clamp chord name font size between ~30 and 46
   const chordFontSize = Math.min(
@@ -289,7 +317,13 @@ export const ListenScreen: React.FC<Props> = ({
             {effectiveChord}
           </Text>
           {effectiveShowNoteNames && displayNoteList ? (
-            <Text style={[styles.noteList, isIdle && styles.noteListIdle]}>
+            <Text
+              style={[
+                styles.noteList,
+                isIdle && styles.noteListIdle,
+                micError && styles.noteListError,
+              ]}
+            >
               {displayNoteList}
             </Text>
           ) : null}
@@ -301,19 +335,48 @@ export const ListenScreen: React.FC<Props> = ({
             <View
               style={[
                 styles.statusGlowRing,
-                !activeStatus && styles.statusGlowRingInactive,
+                micError
+                  ? styles.statusGlowRingError
+                  : !activeStatus && styles.statusGlowRingInactive,
               ]}
             >
               <View
                 style={[
                   styles.statusDot,
-                  !activeStatus && styles.statusDotInactive,
+                  micError
+                    ? styles.statusDotError
+                    : !activeStatus && styles.statusDotInactive,
                 ]}
               />
             </View>
-            <Text style={styles.statusText}>
-              {activeStatus ? 'Listening' : 'Paused'}
+            <Text
+              style={[
+                styles.statusText,
+                micError && styles.statusTextError,
+              ]}
+            >
+              {micError
+                ? 'Mic access needed'
+                : activeStatus
+                  ? 'Listening'
+                  : 'Paused'}
             </Text>
+
+            {micError ? (
+              <Pressable
+                onPress={() => Linking.openSettings()}
+                accessibilityRole="button"
+                accessibilityLabel="Enable microphone in settings"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={({ pressed }) => [
+                  styles.enableButton,
+                  pressed && styles.settingsButtonPressed,
+                ]}
+              >
+                <Text style={styles.enableButtonText}>Enable</Text>
+              </Pressable>
+            ) : null}
+
             {navigation?.navigate ? (
               <Pressable
                 onPress={() => navigation.navigate('Settings')}
@@ -404,6 +467,9 @@ const styles = StyleSheet.create({
   noteListIdle: {
     opacity: OPACITY.caption,
   },
+  noteListError: {
+    color: COLORS.error,
+  },
   rightHeader: {
     alignItems: 'flex-end',
     justifyContent: 'center',
@@ -424,6 +490,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.sliderTrack,
     opacity: OPACITY.glowRing,
   },
+  statusGlowRingError: {
+    backgroundColor: COLORS.errorSoft,
+  },
   statusDot: {
     width: SPACING.statusDot,
     height: SPACING.statusDot,
@@ -433,11 +502,31 @@ const styles = StyleSheet.create({
   statusDotInactive: {
     backgroundColor: COLORS.inkSoft,
   },
+  statusDotError: {
+    backgroundColor: COLORS.error,
+  },
   statusText: {
     fontFamily: FONTS.body.medium,
     fontSize: TYPE_SCALE.caption,
     color: COLORS.inkSoft,
     marginLeft: SPACING.sm,
+  },
+  statusTextError: {
+    color: COLORS.error,
+  },
+  enableButton: {
+    marginLeft: SPACING.sm,
+    paddingVertical: 2,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: STROKE.thin,
+    borderColor: COLORS.error,
+    backgroundColor: COLORS.errorSoft,
+  },
+  enableButtonText: {
+    fontFamily: FONTS.body.medium,
+    fontSize: TYPE_SCALE.caption,
+    color: COLORS.error,
   },
   settingsButton: {
     marginLeft: SPACING.md,
