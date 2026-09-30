@@ -33,8 +33,8 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "tsc --ignoreConfig src/chord-engine/__tests__/chordEngine.test.ts src/chord-engine/chordEngine.ts src/chord-engine/chordDictionary.ts src/chord-engine/chordStability.ts src/chord-engine/types.ts --outDir ./dist-test --target ES2022 --module CommonJS && node dist-test/__tests__/chordEngine.test.js && tsc --ignoreConfig src/settings/__tests__/settingsService.test.ts src/settings/sensitivityMapping.ts src/settings/types.ts --outDir ./dist-test-settings --target ES2022 --module CommonJS && node dist-test-settings/__tests__/settingsService.test.js && tsc --ignoreConfig src/components/__tests__/pianoKeyboard.test.ts src/components/pianoLayout.ts --outDir ./dist-test-piano --target ES2022 --module CommonJS --ignoreDeprecations 6.0 --skipLibCheck && node dist-test-piano/__tests__/pianoKeyboard.test.js"

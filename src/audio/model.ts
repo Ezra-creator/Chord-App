@@ -127,12 +127,15 @@ class NoteDetectionModelService {
 
       // Resolve the bundled local model asset
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const modelAsset = Asset.fromModule(require('../../assets/model/basic_pitch.onnx'));
+      const modelAsset = Asset.fromModule(require('../../assets/models/basic-pitch.onnx'));
       await modelAsset.downloadAsync();
       const modelPath = modelAsset.localUri || modelAsset.uri;
 
       if (!modelPath) {
-        throw new Error('Failed to resolve local URI for basic_pitch.onnx');
+        const errorMsg =
+          '[NoteDetectionModel] Model asset not found at assets/models/basic-pitch.onnx';
+        console.error(errorMsg);
+        throw new Error(errorMsg);
       }
 
       this.session = await onnx.InferenceSession.create(modelPath);
@@ -141,15 +144,16 @@ class NoteDetectionModelService {
         this.modelInputName = this.session.inputNames[0];
       }
 
+      const inputCount = this.session.inputNames.length;
+      const outputCount = this.session.outputNames.length;
+
       console.log(
-        '[NoteDetectionModel] Basic-Pitch ONNX model loaded successfully. Input:',
-        this.modelInputName
+        `[NoteDetectionModel] ONNX model loaded successfully (${inputCount} inputs, ${outputCount} outputs: [${this.session.inputNames.join(', ')}] -> [${this.session.outputNames.join(', ')}])`
       );
     } catch (err) {
-      console.warn(
-        '[NoteDetectionModel] Native ONNX model load error (using fallback pitch processor):',
-        err
-      );
+      const errorMsg = `[NoteDetectionModel] Failed to load ONNX model at assets/models/basic-pitch.onnx: ${err instanceof Error ? err.message : String(err)}`;
+      console.error(errorMsg, err);
+      throw new Error(errorMsg);
     } finally {
       this.isInitializing = false;
     }
@@ -194,7 +198,12 @@ class NoteDetectionModelService {
       const onnx = getOnnxModule();
       if (this.session && onnx) {
         // Run ONNX inference off-thread via onnxruntime-react-native (runs in native C++ worker thread)
-        const tensor = new onnx.Tensor('float32', inputData, [1, MODEL_INPUT_LENGTH]);
+        // Model input shape is [1, 43844, 1] (batch, time, channel)
+        const tensor = new onnx.Tensor('float32', inputData, [
+          1,
+          MODEL_INPUT_LENGTH,
+          1,
+        ]);
         const feeds: Record<string, TensorType> = { [this.modelInputName]: tensor };
         const results = await this.session.run(feeds);
 
@@ -250,6 +259,12 @@ class NoteDetectionModelService {
       }
 
       detectedNotes.sort((a, b) => b.confidence - a.confidence);
+
+      if (detectedNotes.length > 0) {
+        console.log(
+          `[NoteDetectionModel] Detected notes: ${detectedNotes.map((n) => `${n.name} (MIDI ${n.midi}, conf: ${(n.confidence * 100).toFixed(1)}%)`).join(', ')}`
+        );
+      }
 
       this.lastResult = {
         scores,
