@@ -329,26 +329,46 @@ export const ListenScreen: React.FC<Props> = ({
           ) : null}
         </View>
 
-        {/* Right: Status indicator, settings action & previous chords trail */}
+        {/* Center: Segmented Navigation Pill [ Listen | Onboarding | Settings ] */}
+        <View style={styles.navPillContainer}>
+          <View style={styles.navPill}>
+            <View style={styles.navPillActiveItem}>
+              <Text style={styles.navPillActiveText}>Listen</Text>
+            </View>
+            {navigation?.navigate ? (
+              <>
+                <Pressable
+                  onPress={() => navigation.navigate('Onboarding')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Go to Onboarding"
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  style={({ pressed }) => [
+                    styles.navPillItem,
+                    pressed && styles.navPillItemPressed,
+                  ]}
+                >
+                  <Text style={styles.navPillInactiveText}>Onboarding</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => navigation.navigate('Settings')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Go to Settings"
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  style={({ pressed }) => [
+                    styles.navPillItem,
+                    pressed && styles.navPillItemPressed,
+                  ]}
+                >
+                  <Text style={styles.navPillInactiveText}>Settings</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Right: Status indicator & previous chords trail */}
         <View style={styles.rightHeader}>
           <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusGlowRing,
-                micError
-                  ? styles.statusGlowRingError
-                  : !activeStatus && styles.statusGlowRingInactive,
-              ]}
-            >
-              <View
-                style={[
-                  styles.statusDot,
-                  micError
-                    ? styles.statusDotError
-                    : !activeStatus && styles.statusDotInactive,
-                ]}
-              />
-            </View>
             <Text
               style={[
                 styles.statusText,
@@ -362,6 +382,15 @@ export const ListenScreen: React.FC<Props> = ({
                   : 'Paused'}
             </Text>
 
+            <View
+              style={[
+                styles.statusDot,
+                micError
+                  ? styles.statusDotError
+                  : !activeStatus && styles.statusDotInactive,
+              ]}
+            />
+
             {micError ? (
               <Pressable
                 onPress={() => Linking.openSettings()}
@@ -370,25 +399,10 @@ export const ListenScreen: React.FC<Props> = ({
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={({ pressed }) => [
                   styles.enableButton,
-                  pressed && styles.settingsButtonPressed,
+                  pressed && styles.enableButtonPressed,
                 ]}
               >
                 <Text style={styles.enableButtonText}>Enable</Text>
-              </Pressable>
-            ) : null}
-
-            {navigation?.navigate ? (
-              <Pressable
-                onPress={() => navigation.navigate('Settings')}
-                accessibilityRole="button"
-                accessibilityLabel="Open settings"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={({ pressed }) => [
-                  styles.settingsButton,
-                  pressed && styles.settingsButtonPressed,
-                ]}
-              >
-                <Text style={styles.settingsButtonText}>Settings</Text>
               </Pressable>
             ) : null}
           </View>
@@ -442,11 +456,12 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.topRowBottom,
+    paddingBottom: SPACING.md,
   },
   chordInfo: {
+    minWidth: 100,
     justifyContent: 'center',
   },
   chordName: {
@@ -462,7 +477,8 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.body.regular,
     fontSize: TYPE_SCALE.label,
     color: COLORS.inkSoft,
-    marginTop: SPACING.xs,
+    marginTop: 2,
+    letterSpacing: 0.5,
   },
   noteListIdle: {
     opacity: OPACITY.caption,
@@ -470,34 +486,61 @@ const styles = StyleSheet.create({
   noteListError: {
     color: COLORS.error,
   },
+  navPillContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#58595D',
+    borderRadius: RADIUS.full,
+    padding: 3,
+  },
+  navPillActiveItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.full,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  navPillActiveText: {
+    fontFamily: FONTS.body.semiBold,
+    fontSize: 12,
+    color: COLORS.ink,
+  },
+  navPillItem: {
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS.full,
+  },
+  navPillItemPressed: {
+    opacity: OPACITY.pressed,
+  },
+  navPillInactiveText: {
+    fontFamily: FONTS.body.medium,
+    fontSize: 12,
+    color: '#E0DFDC',
+  },
   rightHeader: {
     alignItems: 'flex-end',
     justifyContent: 'center',
+    minWidth: 100,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  statusGlowRing: {
-    width: SPACING.statusRing,
-    height: SPACING.statusRing,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.tealSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusGlowRingInactive: {
-    backgroundColor: COLORS.sliderTrack,
-    opacity: OPACITY.glowRing,
-  },
-  statusGlowRingError: {
-    backgroundColor: COLORS.errorSoft,
+    justifyContent: 'flex-end',
   },
   statusDot: {
-    width: SPACING.statusDot,
-    height: SPACING.statusDot,
-    borderRadius: RADIUS.dot,
-    backgroundColor: COLORS.teal,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#2E9E6B',
   },
   statusDotInactive: {
     backgroundColor: COLORS.inkSoft,
@@ -509,7 +552,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.body.medium,
     fontSize: TYPE_SCALE.caption,
     color: COLORS.inkSoft,
-    marginLeft: SPACING.sm,
+    marginRight: 6,
   },
   statusTextError: {
     color: COLORS.error,
@@ -523,32 +566,19 @@ const styles = StyleSheet.create({
     borderColor: COLORS.error,
     backgroundColor: COLORS.errorSoft,
   },
+  enableButtonPressed: {
+    opacity: OPACITY.pressed,
+  },
   enableButtonText: {
     fontFamily: FONTS.body.medium,
     fontSize: TYPE_SCALE.caption,
     color: COLORS.error,
   },
-  settingsButton: {
-    marginLeft: SPACING.md,
-    paddingVertical: 2,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: RADIUS.sm,
-    borderWidth: STROKE.thin,
-    borderColor: COLORS.divider,
-    backgroundColor: COLORS.paper,
-  },
-  settingsButtonPressed: {
-    opacity: OPACITY.pressed,
-  },
-  settingsButtonText: {
-    fontFamily: FONTS.body.medium,
-    fontSize: TYPE_SCALE.caption,
-    color: COLORS.inkSoft,
-  },
   previousChordsTrail: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.topRowBottom,
+    justifyContent: 'flex-end',
+    marginTop: 4,
   },
   trailChord: {
     fontFamily: FONTS.body.medium,
@@ -565,7 +595,8 @@ const styles = StyleSheet.create({
   },
   keyboardContainer: {
     flex: 1,
-    paddingHorizontal: SPACING.xl,
+    borderTopWidth: STROKE.thin,
+    borderTopColor: COLORS.whiteKeyEdge,
   },
 });
 
