@@ -56,27 +56,77 @@ export function midiToNoteName(midi: number): string {
 }
 
 /**
- * Resamples and shapes an incoming audio buffer to match the Basic Pitch input:
- * 43,844 samples at 22,050 Hz (mono, normalized float32).
+ * Normalizes audio samples to float32 range [-1.0, 1.0].
+ * If samples are in 16-bit PCM integer range (peak > 1.5), divides by 32768.0.
+ */
+export function normalizeAudio(samples: Float32Array): Float32Array {
+  const len = samples.length;
+  let maxAbs = 0;
+  for (let i = 0; i < len; i++) {
+    const absVal = Math.abs(samples[i]);
+    if (absVal > maxAbs) maxAbs = absVal;
+  }
+
+  const is16Bit = maxAbs > 1.5;
+  const divisor = is16Bit ? 32768.0 : 1.0;
+  const normalized = new Float32Array(len);
+
+  for (let i = 0; i < len; i++) {
+    const val = samples[i] / divisor;
+    normalized[i] = Math.max(-1.0, Math.min(1.0, val));
+  }
+
+  return normalized;
+}
+
+/**
+ * Resamples an audio buffer to target sample rate using linear interpolation.
+ */
+export function resampleAudio(
+  samples: Float32Array,
+  inputSampleRate: number,
+  targetSampleRate: number
+): Float32Array {
+  if (inputSampleRate === targetSampleRate) {
+    return samples;
+  }
+
+  const ratio = inputSampleRate / targetSampleRate;
+  const outLength = Math.floor(samples.length / ratio);
+  const output = new Float32Array(outLength);
+
+  for (let i = 0; i < outLength; i++) {
+    const srcIndex = i * ratio;
+    const i0 = Math.floor(srcIndex);
+    const i1 = Math.min(samples.length - 1, i0 + 1);
+    const frac = srcIndex - i0;
+    output[i] = samples[i0] * (1.0 - frac) + samples[i1] * frac;
+  }
+
+  return output;
+}
+
+/**
+ * Normalizes, resamples via linear interpolation, and shapes incoming audio buffer
+ * to match the Basic Pitch input: 43,844 samples at 22,050 Hz (mono, float32 [-1, 1]).
  */
 export function prepareModelInput(
   samples: Float32Array,
   inputSampleRate: number
 ): Float32Array {
+  // 1. Explicit normalization: convert 16-bit PCM integers to normalized float32 [-1.0, 1.0]
+  const normalized = normalizeAudio(samples);
+
+  // 2. Linear interpolation resampling from inputSampleRate (e.g. 44100Hz) to MODEL_SAMPLE_RATE (22050Hz)
+  const resampled = resampleAudio(normalized, inputSampleRate, MODEL_SAMPLE_RATE);
+
+  // 3. Shape to exact MODEL_INPUT_LENGTH (43844 samples), aligning latest samples to the end
   const target = new Float32Array(MODEL_INPUT_LENGTH);
-  const step = inputSampleRate / MODEL_SAMPLE_RATE;
-  const availableResampledCount = Math.min(
-    MODEL_INPUT_LENGTH,
-    Math.floor(samples.length / step)
-  );
+  const copyCount = Math.min(MODEL_INPUT_LENGTH, resampled.length);
+  const srcStart = resampled.length - copyCount;
+  const targetStart = MODEL_INPUT_LENGTH - copyCount;
 
-  // Align latest audio samples to the end of the input window
-  const offset = MODEL_INPUT_LENGTH - availableResampledCount;
-
-  for (let i = 0; i < availableResampledCount; i++) {
-    const srcIdx = Math.floor(i * step);
-    target[offset + i] = samples[srcIdx];
-  }
+  target.set(resampled.subarray(srcStart, srcStart + copyCount), targetStart);
 
   return target;
 }
@@ -124,6 +174,9 @@ class NoteDetectionModelService {
         console.log(
           '[NoteDetectionModel] Native ONNX module not available in current environment (using fallback pitch processor).'
         );
+        console.log(
+          `[MODEL-SPEC] Fallback processor spec: shape=[1, ${MODEL_INPUT_LENGTH}, 1], dtype=float32, expectedSampleRate=${MODEL_SAMPLE_RATE}Hz`
+        );
         return;
       }
 
@@ -148,6 +201,27 @@ class NoteDetectionModelService {
 
       const inputCount = this.session.inputNames.length;
       const outputCount = this.session.outputNames.length;
+
+      // [MODEL-SPEC] Read expected input shape, type, and sample rate from session metadata
+      let modelInputShape: (number | string)[] = [1, MODEL_INPUT_LENGTH, 1];
+      let modelInputType = 'float32';
+      const rawMeta =
+        (this.session as any).inputMetadata ??
+        (this.session as any).handler?.inputMetadata;
+
+      if (rawMeta && rawMeta.length > 0) {
+        const primaryInput = rawMeta[0];
+        if (primaryInput.shape) {
+          modelInputShape = primaryInput.shape;
+        }
+        if (primaryInput.type) {
+          modelInputType = primaryInput.type;
+        }
+      }
+
+      console.log(
+        `[MODEL-SPEC] ONNX input spec: name="${this.modelInputName}", shape=[${modelInputShape.join(', ')}], dtype=${modelInputType}, expectedSampleRate=${MODEL_SAMPLE_RATE}Hz`
+      );
 
       console.log(
         `[NoteDetectionModel] ONNX model loaded successfully (${inputCount} inputs, ${outputCount} outputs: [${this.session.inputNames.join(', ')}] -> [${this.session.outputNames.join(', ')}])`
@@ -191,10 +265,35 @@ class NoteDetectionModelService {
         await this.loadModel().catch(() => {});
       }
 
-      // Yield event loop so UI / JS thread is never blocked
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // [2a-BUFFER-STATS] Immediately before audio buffer is converted into model input tensor
+      let peakAmp = 0;
+      let sumSq = 0;
+      const sampleCount = buffer.samples.length;
+      for (let i = 0; i < sampleCount; i++) {
+        const absVal = Math.abs(buffer.samples[i]);
+        if (absVal > peakAmp) peakAmp = absVal;
+        sumSq += buffer.samples[i] * buffer.samples[i];
+      }
+      const rmsAmp = sampleCount > 0 ? Math.sqrt(sumSq / sampleCount) : 0;
+      console.log(
+        `[2a-BUFFER-STATS] sampleCount=${sampleCount} | sampleRate=${buffer.sampleRate}Hz | peak=${peakAmp.toFixed(6)} | rms=${rmsAmp.toFixed(6)}`
+      );
 
       const inputData = prepareModelInput(buffer.samples, buffer.sampleRate);
+
+      // [2b-TENSOR-CHECK] Immediately after building final input tensor and before inference
+      let tensorPeak = 0;
+      let tensorSumSq = 0;
+      for (let i = 0; i < inputData.length; i++) {
+        const absVal = Math.abs(inputData[i]);
+        if (absVal > tensorPeak) tensorPeak = absVal;
+        tensorSumSq += inputData[i] * inputData[i];
+      }
+      const tensorRms = Math.sqrt(tensorSumSq / inputData.length);
+      console.log(
+        `[2b-TENSOR-CHECK] shape=[1, ${MODEL_INPUT_LENGTH}, 1] | dtype=float32 | peak=${tensorPeak.toFixed(6)} | rms=${tensorRms.toFixed(6)}`
+      );
+
       const scores = new Float32Array(PIANO.totalKeys);
 
       const onnx = getOnnxModule();
