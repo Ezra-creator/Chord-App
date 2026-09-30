@@ -22,7 +22,9 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ListenScreen } from './src/screens/ListenScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { RotatePrompt } from './src/components/RotatePrompt';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import type { RootStackParamList } from './src/navigation/types';
+import { getRecordingPermissionsAsync } from 'expo-audio';
 import {
   SettingsProvider,
   loadPersistedSettings,
@@ -35,10 +37,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-function AppNavigator() {
+function AppNavigator({ initialRoute }: { initialRoute: keyof RootStackParamList }) {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Onboarding">
+      <Stack.Navigator initialRouteName={initialRoute}>
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}
@@ -91,6 +93,32 @@ export default function App() {
     };
   }, []);
 
+  // Check if microphone permission is already granted to skip onboarding for returning users
+  const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList>('Onboarding');
+  const [permissionChecked, setPermissionChecked] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getRecordingPermissionsAsync()
+      .then((status) => {
+        if (isMounted) {
+          if (status.granted) {
+            setInitialRoute('Listen');
+          }
+          setPermissionChecked(true);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setPermissionChecked(true);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Lock to landscape and re-assert on orientation changes / OS prompt dismissal
   useEffect(() => {
     const lockLandscape = () => {
@@ -118,15 +146,15 @@ export default function App() {
     };
   }, []);
 
-  // Hide splash screen once fonts AND settings are fully loaded
+  // Hide splash screen once fonts, settings, AND permissions are fully loaded
   useEffect(() => {
-    if ((fontsLoaded || fontError) && settingsLoaded) {
+    if ((fontsLoaded || fontError) && settingsLoaded && permissionChecked) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, fontError, settingsLoaded]);
+  }, [fontsLoaded, fontError, settingsLoaded, permissionChecked]);
 
-  // Loading gate: do not render app until fonts and persisted settings are loaded
-  if ((!fontsLoaded && !fontError) || !settingsLoaded) {
+  // Loading gate: do not render app until fonts, persisted settings, and permissions are loaded
+  if ((!fontsLoaded && !fontError) || !settingsLoaded || !permissionChecked) {
     return null;
   }
 
@@ -134,15 +162,17 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar hidden={false} style="dark" />
       <SettingsProvider initialSettings={initialSettings}>
-        <View style={styles.container}>
-          {/* Keep AppNavigator continuously mounted so state, permissions, and audio stream are preserved */}
-          <AppNavigator />
-          {isPortrait ? (
-            <View style={StyleSheet.absoluteFill} pointerEvents="auto">
-              <RotatePrompt />
-            </View>
-          ) : null}
-        </View>
+        <ErrorBoundary>
+          <View style={styles.container}>
+            {/* Keep AppNavigator continuously mounted so state, permissions, and audio stream are preserved */}
+            <AppNavigator initialRoute={initialRoute} />
+            {isPortrait ? (
+              <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+                <RotatePrompt />
+              </View>
+            ) : null}
+          </View>
+        </ErrorBoundary>
       </SettingsProvider>
     </SafeAreaProvider>
   );

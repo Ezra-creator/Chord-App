@@ -225,22 +225,28 @@ export const ListenScreen: React.FC<Props> = ({
     scores,
     error: micError,
     start: startAudio,
+    stop: stopAudio,
   } = useNoteDetection({
     autoStart: isListening,
   });
 
-  // Automatically resume audio capture if mic permission is granted in device settings
+  // Handle backgrounding, phone call interruptions, and returning to active state
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active' && isListening && micError) {
-        startAudio().catch(() => {});
+      if (nextState === 'active') {
+        if (isListening) {
+          startAudio().catch(() => {});
+        }
+      } else if (nextState === 'background' || nextState === 'inactive') {
+        stopAudio();
+        chordStabilizerRef.current.reset();
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [isListening, micError, startAudio]);
+  }, [isListening, startAudio, stopAudio]);
 
   // Stabilize note activations across consecutive frames with onset debouncing and hysteresis
   // Feeds live dynamic sensitivity threshold mapped directly from settings

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - ChordApp</title>
+  <style>
+    :root {
+      --bg: #F5F4F0;
+      --card-bg: #FFFFFF;
+      --ink: #111215;
+      --ink-soft: #63656A;
+      --teal: #1F7A8C;
+      --teal-soft: #E6F4F7;
+      --border: #E0DFDC;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      padding: 48px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--border);
+    }
+    .badge {
+      display: inline-block;
+      background: var(--teal-soft);
+      color: var(--teal);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+    .meta {
+      color: var(--ink-soft);
+      font-size: 14px;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-top: 32px;
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 20px;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+    p, li {
+      font-size: 15px;
+      color: #333;
+      margin-bottom: 14px;
+    }
+    ul {
+      padding-left: 24px;
+      margin-bottom: 16px;
+    }
+    li {
+      margin-bottom: 8px;
+    }
+    .highlight-box {
+      background: var(--teal-soft);
+      border-left: 4px solid var(--teal);
+      padding: 18px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 24px 0;
+    }
+    .highlight-box p {
+      color: var(--ink);
+      font-weight: 500;
+      margin: 0;
+    }
+    a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--ink-soft);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <span class="badge">Privacy First</span>
+    <h1>Privacy Policy for ChordApp</h1>
+    <div class="meta">
+      Effective Date: September 30, 2026 &bull; Last Updated: September 30, 2026
+    </div>
+
+    <div class="highlight-box">
+      <p><strong>Core Promise:</strong> ChordApp processes 100% of all audio locally on your device in real-time. No voice or audio recordings are ever stored, recorded, collected, or transmitted over any network.</p>
+    </div>
+
+    <h2>1. Overview</h2>
+    <p>ChordApp (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;the App&rdquo;) is designed with privacy as a foundational principle. The application is built to help musicians identify acoustic piano chords in real time without compromising their privacy, collecting personal information, or streaming ambient audio to the cloud.</p>
+
+    <h2>2. Microphone Usage and Audio Processing</h2>
+    <p>ChordApp requests permission to access your device's microphone (<code>android.permission.RECORD_AUDIO</code> on Android and <code>NSMicrophoneUsageDescription</code> on iOS) strictly to fulfill the core musical functionality of the application.</p>
+    
+    <h3>Purpose of Access</h3>
+    <p>Microphone access is used solely to capture acoustic piano frequencies from your immediate surroundings to identify musical notes and chord structures in real time.</p>
+
+    <h3>100% On-Device Neural Processing</h3>
+    <p>Audio is evaluated entirely on your physical smartphone or tablet via local machine learning models (Basic Pitch neural network inference). The audio signal is mathematically processed in real-time to compute pitch activations and chord names without external servers.</p>
+
+    <h3>Zero Audio Storage</h3>
+    <p>Audio buffers reside exclusively in temporary, volatile random-access memory (RAM) for the few fractions of a second needed for computation and are immediately discarded. <strong>ChordApp does not record, save, store, or cache audio files, voice recordings, or sound clips to your device storage or cloud storage.</strong></p>
+
+    <h3>Zero Network Transmission</h3>
+    <p>Microphone data is <strong>never transmitted over the internet</strong>, uploaded to remote servers, or shared with third parties. ChordApp functions completely offline without any internet connection.</p>
+
+    <h2>3. Data Collection and Tracking</h2>
+    <ul>
+      <li><strong>No Personal Information:</strong> We do not collect names, email addresses, phone numbers, contact lists, photos, or precise location data.</li>
+      <li><strong>No Analytics or Tracking SDKs:</strong> ChordApp does not include third-party tracking, profiling, or behavioral analytics software.</li>
+      <li><strong>No Advertising:</strong> ChordApp does not display advertisements or transmit identifiers to advertising networks.</li>
+    </ul>
+
+    <h2>4. Local Settings Storage</h2>
+    <p>ChordApp saves your preferred user settings (such as <em>Show note names</em>, <em>Keep screen awake</em>, and <em>Sensitivity</em>) locally on your device using standard sandboxed storage (AsyncStorage). This data never leaves your device and is automatically removed if the app is uninstalled.</p>
+
+    <h2>5. Children's Privacy</h2>
+    <p>ChordApp is completely safe for audiences of all ages, including children. We do not collect or solicit personal information from anyone, compliant with COPPA and GDPR regulations.</p>
+
+    <h2>6. Contact Us</h2>
+    <p>If you have any questions or feedback regarding our privacy practices, please contact us via our project repository:</p>
+    <p><a href="https://github.com/Ezra-creator/Chord-App">https://github.com/Ezra-creator/Chord-App</a></p>
+
+    <footer>
+      &copy; 2026 ChordApp. All rights reserved. Built for musicians.
+    </footer>
+  </main>
+</body>
+</html>

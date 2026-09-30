@@ -105,6 +105,7 @@ class NoteDetectionModelService {
   private session: InferenceSession | null = null;
   private isInitializing: boolean = false;
   private isInferring: boolean = false;
+  private loadAttempted: boolean = false;
   private modelInputName: string = 'serving_default_input_2:0';
 
   /**
@@ -115,6 +116,7 @@ class NoteDetectionModelService {
     if (this.isInitializing) return;
 
     this.isInitializing = true;
+    this.loadAttempted = true;
 
     try {
       const onnx = getOnnxModule();
@@ -184,9 +186,9 @@ class NoteDetectionModelService {
     this.isInferring = true;
 
     try {
-      // Ensure model is initialized
-      if (!this.session && !this.isInitializing) {
-        await this.loadModel();
+      // Ensure model is initialized once
+      if (!this.session && !this.isInitializing && !this.loadAttempted) {
+        await this.loadModel().catch(() => {});
       }
 
       // Yield event loop so UI / JS thread is never blocked
@@ -260,7 +262,7 @@ class NoteDetectionModelService {
 
       detectedNotes.sort((a, b) => b.confidence - a.confidence);
 
-      if (detectedNotes.length > 0) {
+      if (__DEV__ && detectedNotes.length > 0) {
         console.log(
           `[NoteDetectionModel] Detected notes: ${detectedNotes.map((n) => `${n.name} (MIDI ${n.midi}, conf: ${(n.confidence * 100).toFixed(1)}%)`).join(', ')}`
         );
